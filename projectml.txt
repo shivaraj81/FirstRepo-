@@ -1,0 +1,98 @@
+from flask import Flask,render_template,request
+import pickle
+import pandas as pd
+import numpy as np
+from statsmodels.tsa.arima.model import ARIMA
+import os
+
+
+
+
+app = Flask(__name__)
+
+
+UPLOAD_FOLDER = 'static'
+
+app.config['UPLOAD_FOLDER'] = UPLOAD_FOLDER
+
+
+@app.route('/')
+def home():
+    return render_template('index.html')
+
+
+@app.route('/login')
+def login():
+    return render_template('login.html')
+
+def train_model(path):
+    path = path.replace("/","\\")
+    data = pd.read_csv(path)
+    print(path)
+    print(data.head())
+    data['year'] = pd.to_datetime(data['year'])
+    data.set_index('year', inplace=True)
+    medicine = request.form['medicine']
+    data_medicine = data[data['medicine'] == medicine]
+    data_medicine = data_medicine[['noofunits']]
+    data_medicine = data_medicine.resample('D').ffill()
+    data_medicine.dropna(inplace=True)
+    train_size = int(len(data) * 0.8)
+    train_data, test_data = data[:train_size], data[train_size:]
+
+    model = ARIMA(data_medicine['noofunits'], order=(0,2,4))
+    model_fit = model.fit()
+    forecast1 = model_fit.forecast(steps=20)[0]
+    print(forecast1)
+
+
+
+    #instead of path give path to pickle file
+    #if os.path.exists(path):
+        #os.remove(path)
+        #file1.save(path)
+
+    return render_template('predict.html',path,data.head(0))
+    
+    
+@app.route('/predict',methods=["GET","POST"])
+def predict():
+    #model train and create your pickle file
+    #newdata = preprocess(data)
+    if request.method == 'POST':
+        try:
+            if 'file1' not in request.files:
+                err = 'Upload a file'
+            else:
+                file1 = request.files['file1']
+                
+                path = os.path.join(app.config['UPLOAD_FOLDER'], file1.filename)
+                
+                if os.path.exists(path):
+                    os.remove(path)
+                    file1.save(path)
+
+                data= train_model(path)
+                print(data)
+
+        except:
+            print(" ")
+
+    return render_template('predict.html')
+
+
+@app.route("/actual_prection",methods=["GET","POST"])
+def actual_prediction():
+    output=""
+    if request.method=="post":
+        #take the inputs and load the created pickle file to predict the output
+
+        output="YES"
+    render_template("predict.html",output=output)
+
+if __name__ == '__main__':
+    app.run(debug=True)
+
+
+
+
